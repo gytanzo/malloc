@@ -22,7 +22,7 @@ struct table { /* free list table */
 static struct table *freetable = NULL;
 
 static int sizeoftable = sizeof(struct table);
-static int sizeoflist = sizeof(struct list);
+static int sizeoflist = sizeof(struct list *);
 
 #define CHUNK_SIZE (1<<12)
 
@@ -92,7 +92,6 @@ void expand(size_t adjusted, struct list *freelist){
         chunksize -= adjusted;
 
     }
-    freelist -> next = NULL;
     freelist = original;
 }
 
@@ -139,7 +138,7 @@ void *malloc(size_t size) {
         freetable -> five = sbrk(32);
         freetable -> six = sbrk(64);
         freetable -> seven = sbrk(128);
-        freetable -> eight = sbrk(256);
+        freetable -> eight = sbrk(177);
         freetable -> nine = sbrk(512);
         freetable -> ten = sbrk(1024);
         freetable -> eleven = sbrk(2048);
