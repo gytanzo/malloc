@@ -136,14 +136,14 @@ void *malloc(size_t size) {
 
     if (freetable == NULL){
         freetable = sbrk(sizeoftable);
-        freetable -> five = sbrk(sizeoflist);
-        freetable -> six = sbrk(sizeoflist);
-        freetable -> seven = sbrk(sizeoflist);
-        freetable -> eight = sbrk(sizeoflist);
-        freetable -> nine = sbrk(sizeoflist);
-        freetable -> ten = sbrk(sizeoflist);
-        freetable -> eleven = sbrk(sizeoflist);
-        freetable -> twelve = sbrk(sizeoflist);
+        freetable -> five = sbrk(32);
+        freetable -> six = sbrk(64);
+        freetable -> seven = sbrk(128);
+        freetable -> eight = sbrk(256);
+        freetable -> nine = sbrk(512);
+        freetable -> ten = sbrk(1024);
+        freetable -> eleven = sbrk(2048);
+        freetable -> twelve = sbrk(4096);
     }
 
     if (size <= 4088){ /* NOT using a bulk allocation */
