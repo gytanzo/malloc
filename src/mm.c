@@ -1,43 +1,35 @@
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
-/* When requesting memory from the OS using sbrk(), request it in
- * increments of CHUNK_SIZE. */
+struct list { /* format for the header, loosely based on K&R's Header struct from page 187 */
+    struct list *prev; /* last block */
+    struct list *next; /* next block */
+    size_t size; /* size of the block */
+};
+
+struct table { /* free list table */
+    struct list *five;
+    struct list *six;
+    struct list *seven;
+    struct list *eight;
+    struct list *nine;
+    struct list *ten;
+    struct list *eleven;
+    struct list *twelve;
+};
+
+static struct table *freetable = NULL;
+
+static int sizeoftable = sizeof(struct table);
+static int sizeoflist = sizeof(struct list);
+
 #define CHUNK_SIZE (1<<12)
 
-/*
- * This function, defined in bulk.c, allocates a contiguous memory
- * region of at least size bytes.  It MAY NOT BE USED as the allocator
- * for pool-allocated regions.  Memory allocated using bulk_alloc()
- * must be freed by bulk_free().
- *
- * This function will return NULL on failure.
- */
 extern void *bulk_alloc(size_t size);
 
-/*
- * This function is also defined in bulk.c, and it frees an allocation
- * created with bulk_alloc().  Note that the pointer passed to this
- * function MUST have been returned by bulk_alloc(), and the size MUST
- * be the same as the size passed to bulk_alloc() when that memory was
- * allocated.  Any other usage is likely to fail, and may crash your
- * program.
- */
 extern void bulk_free(void *ptr, size_t size);
 
-/*
- * This function computes the log base 2 of the allocation block size
- * for a given allocation.  To find the allocation block size from the
- * result of this function, use 1 << block_size(x).
- *
- * Note that its results are NOT meaningful for any
- * size > 4088!
- *
- * You do NOT need to understand how this function works.  If you are
- * curious, see the gcc info page and search for __builtin_clz; it
- * basically counts the number of leading binary zeroes in the value
- * passed as its argument.
- */
 static inline __attribute__((unused)) int block_index(size_t x) {
     if (x <= 8) {
         return 5;
@@ -46,55 +38,408 @@ static inline __attribute__((unused)) int block_index(size_t x) {
     }
 }
 
-/*
- * You must implement malloc().  Your implementation of malloc() must be
- * the multi-pool allocator described in the project handout.
- */
-void *malloc(size_t size) {
-    return bulk_alloc(size);
+size_t adjust(size_t size){
+    int pow = block_index(size);
+    int adjusted = 1<<pow;
+    return adjusted;
 }
 
-/*
- * You must also implement calloc().  It should create allocations
- * compatible with those created by malloc().  In particular, any
- * allocations of a total size <= 4088 bytes must be pool allocated,
- * while larger allocations must use the bulk allocator.
- *
- * calloc() (see man 3 calloc) returns a cleared allocation large enough
- * to hold nmemb elements of size size.  It is cleared by setting every
- * byte of the allocation to 0.  You should use the function memset()
- * for this (see man 3 memset).
- */
-void *calloc(size_t nmemb, size_t size) {
-    void *ptr = bulk_alloc(nmemb * size);
-    memset(ptr, 0, nmemb * size);
-    return ptr;
-}
-
-/*
- * You must also implement realloc().  It should create allocations
- * compatible with those created by malloc(), honoring the pool
- * alocation and bulk allocation rules.  It must move data from the
- * previously-allocated block to the newly-allocated block if it cannot
- * resize the given block directly.  See man 3 realloc for more
- * information on what this means.
- *
- * It is not possible to implement realloc() using bulk_alloc() without
- * additional metadata, so the given code is NOT a working
- * implementation!
- */
-void *realloc(void *ptr, size_t size) {
-    fprintf(stderr, "Realloc is not implemented!\n");
+struct list* findList(size_t size){
+    if (size == 5){
+        return freetable -> five;
+    }
+    else if (size == 6){
+        return freetable -> six;
+    }
+    else if (size == 7){
+        return freetable -> seven;
+    }
+    else if (size == 8){
+        return freetable -> eight;
+    }
+    else if (size == 9){
+        return freetable -> nine;
+    }
+    else if (size == 10){
+        return freetable -> ten;
+    }
+    else if (size == 11){
+        return freetable -> eleven;
+    }
+    else if (size == 12){
+        return freetable -> twelve;
+    }
     return NULL;
 }
 
-/*
- * You should implement a free() that can successfully free a region of
- * memory allocated by any of the above allocation routines, whether it
- * is a pool- or bulk-allocated region.
- *
- * The given implementation does nothing.
- */
+void expand(size_t adjusted, struct list *freelist){
+    int chunksize = CHUNK_SIZE - adjusted; /* already sbrk'ed once */
+    struct list *original = freelist;
+    struct list *old;
+    if (adjusted == 4096){
+            freelist -> next = sbrk(adjusted);
+            freelist -> next -> next = NULL;
+            freelist -> next -> prev = NULL;
+            return;
+    }
+    while (chunksize != 0){
+        old = freelist;
+        
+        freelist -> next = sbrk(adjusted);
+        freelist = freelist -> next;
+        freelist -> prev = old;
+
+        chunksize -= adjusted;
+
+    }
+    freelist -> next = NULL;
+    freelist = original;
+}
+
+void update(size_t size, struct list *updatedList){
+    if (size == 5){
+        freetable -> five = updatedList;
+    }
+    else if (size == 6){
+        freetable -> six = updatedList;
+    }
+    else if (size == 7){
+        freetable -> seven = updatedList;
+    }
+    else if (size == 8){
+        freetable -> eight = updatedList;
+    }
+    else if (size == 9){
+        freetable -> nine = updatedList;
+    }
+    else if (size == 10){
+        freetable -> ten = updatedList;
+    }
+    else if (size == 11){
+        freetable -> eleven = updatedList;
+    }
+    else if (size == 12){
+        freetable -> twelve = updatedList;
+    }
+}
+
+void *malloc(size_t size) {
+    fprintf(stderr, "%s%zd%s\n", "malloc(", size, ");");
+    int index = block_index(size);
+    int headspace = size + 8; /* size of the block plus 8 for metadata */
+    size_t adjusted = adjust(size); /* Adjusted block size */
+    struct list *returnlist; /* return this */
+    
+    if (size == 0){
+        return NULL;
+    }
+
+    if (freetable == NULL){
+        freetable = sbrk(sizeoftable);
+        freetable -> five = sbrk(sizeoflist);
+        freetable -> six = sbrk(sizeoflist);
+        freetable -> seven = sbrk(sizeoflist);
+        freetable -> eight = sbrk(sizeoflist);
+        freetable -> nine = sbrk(sizeoflist);
+        freetable -> ten = sbrk(sizeoflist);
+        freetable -> eleven = sbrk(sizeoflist);
+        freetable -> twelve = sbrk(sizeoflist);
+    }
+
+    if (size <= 4088){ /* NOT using a bulk allocation */
+        struct list *thelist = findList(index);
+        if (thelist -> next != NULL){ /* Space available, ready to allocate */
+            returnlist = thelist;
+
+            if (adjusted != 4096){
+                thelist = thelist -> next;
+                thelist -> prev = NULL;
+
+                update(index, thelist);
+            }
+
+            else {
+                thelist = sbrk(sizeoflist);
+                update(index, thelist);
+            }
+            
+            returnlist -> size = headspace;
+            returnlist -> next = NULL; /* returnlist shouldn't be associated with the free table */
+
+            return returnlist + 8;
+        }
+
+        else { /* Not enough space available */
+            expand(adjusted, thelist);
+
+            returnlist = thelist;
+
+            if (adjusted != 4096){
+                thelist = thelist -> next;
+                thelist -> prev = NULL;
+
+                update(index, thelist);
+            }
+
+            else {
+                thelist = sbrk(sizeoflist);
+                update(index, thelist);
+            }
+
+            returnlist -> size = headspace;
+            returnlist -> next = NULL;
+
+            return returnlist + 8;
+        }
+    }
+
+    else { /* Using a bulk allocation */
+        returnlist = bulk_alloc(size + 8);
+        returnlist -> size = headspace;
+        return returnlist + 8;
+    }
+
+    return NULL;
+}
+
+void *calloc(size_t nmemb, size_t size) {
+    /* fprintf(stderr, "%s%zd%s%zd%s\n", "calloc(", nmemb, ", ", size, ");"); */
+    size_t multiply = nmemb * size;
+    if (multiply == 0){
+        return NULL;
+    }
+    if (multiply >= 4096){
+        struct list *ptr = malloc(multiply);
+        memset(ptr, 0, multiply);
+        return ptr;
+    }
+    struct list *ptr = malloc(multiply);
+    memset(ptr, 0, multiply);
+    return ptr;
+}
+
 void free(void *ptr) {
+    if (ptr == NULL){ /* Clarity check, see man 3 malloc */
+        fprintf(stderr, "%s\n", "free(NULL ptr);");
+        return;
+    }
+    
+    struct list *listify = (struct list*)ptr; /* converts to type struct list */
+    listify = listify - 8;
+    
+    struct list *pointer = listify;
+
+    size_t size = pointer -> size; /* want size without heading */
+    size_t adjusted = adjust(size-8);
+    int index = block_index(size-8);
+
+    if (size <= 0){ /* this isn't a valid pointer */
+        return;
+    }
+
+    fprintf(stderr, "%s%zd%s\n", "free(*", size - 8, ");");
+
+    struct list *stoneFree, *stoneOcean;
+
+    if (adjusted <= 4096){ /* Doesn't use bulk allocations */
+        if (index == 5){
+            stoneFree = freetable -> five;
+            stoneOcean = freetable -> five -> next;
+            
+            freetable -> five = pointer;
+            freetable -> five -> next = stoneFree;
+            freetable -> five -> prev = NULL;
+            freetable -> five -> size = 0;
+
+            if(freetable -> five != pointer || freetable -> five -> next != stoneFree || freetable -> five -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 6){
+            stoneFree = freetable -> six;
+            stoneOcean = freetable -> six -> next;
+            
+            freetable -> six = pointer;
+            freetable -> six -> next = stoneFree;
+            freetable -> six -> prev = NULL;
+            freetable -> six -> size = 0;
+            
+            if(freetable -> six != pointer || freetable -> six -> next != stoneFree || freetable -> six -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 7){
+            stoneFree = freetable -> seven;
+            stoneOcean = freetable -> seven -> next;
+            
+            freetable -> seven = pointer;
+            freetable -> seven -> next = stoneFree;
+            freetable -> seven -> prev = NULL;
+            freetable -> seven -> size = 0;
+
+            if(freetable -> seven != pointer || freetable -> seven -> next != stoneFree || freetable -> seven -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            
+            return;
+        }
+        else if (index == 8){
+            stoneFree = freetable -> eight;
+            stoneOcean = freetable -> eight -> next;
+            
+            freetable -> eight = pointer;
+            freetable -> eight -> next = stoneFree;
+            freetable -> eight -> prev = NULL;
+            freetable -> eight -> size = 0;
+
+            if(freetable -> eight != pointer || freetable -> eight -> next != stoneFree || freetable -> eight -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 9){
+            stoneFree = freetable -> nine;
+            stoneOcean = freetable -> nine -> next;
+            
+            freetable -> nine = pointer;
+            freetable -> nine -> next = stoneFree;
+            freetable -> nine -> prev = NULL;
+            freetable -> nine -> size = 0;
+
+            if(freetable -> nine != pointer || freetable -> nine -> next != stoneFree || freetable -> nine -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 10){
+            stoneFree = freetable -> ten;
+            stoneOcean = freetable -> ten -> next;
+            
+            freetable -> ten = pointer;
+            freetable -> ten -> next = stoneFree;
+            freetable -> ten -> prev = NULL;
+            freetable -> ten -> size = 0;
+
+            if(freetable -> ten != pointer || freetable -> ten -> next != stoneFree || freetable -> ten -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 11){
+            stoneFree = freetable -> eleven;
+            stoneOcean = freetable -> eleven -> next;
+            
+            freetable -> eleven = pointer;
+            freetable -> eleven -> next = stoneFree;
+            freetable -> eleven -> prev = NULL;
+            freetable -> eleven -> size = 0;
+
+            if(freetable -> eleven != pointer || freetable -> eleven -> next != stoneFree || freetable -> eleven -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+        else if (index == 12){
+            stoneFree = freetable -> twelve;
+            stoneOcean = freetable -> twelve -> next;
+            
+            freetable -> twelve = pointer;
+            freetable -> twelve -> next = stoneFree;
+            freetable -> twelve -> prev = NULL;
+            freetable -> twelve -> size = 0;
+            
+            if(freetable -> twelve != pointer || freetable -> twelve -> next != stoneFree || freetable -> twelve -> next -> next != stoneOcean){
+                fprintf(stderr, "You have failed.");
+            }
+            return;
+        }
+    }
+
+    else { /* Uses bulk allocations */
+        bulk_free(pointer, size);
+        return;
+    }
+    
     return;
+}
+
+void *realloc(void *ptr, size_t size) {
+    struct list *returnlist; /* return this */
+    
+    if (ptr == NULL){ /* First clarity check, see man 3 malloc */
+        /* fprintf(stderr, "%s\n", "realloc(NULL ptr);"); */
+        returnlist = malloc(size);
+        return returnlist;
+    }
+
+    if (size == 0 && ptr != NULL){ /* Second clarity check, see man 3 malloc */
+        /* fprintf(stderr, "%s\n", "realloc(size 0);"); */
+        free(ptr);
+        return NULL;
+    }
+
+    struct list *listify = (struct list*)ptr; /* converts to type struct list */
+    listify = listify - 8;
+    
+    struct list *pointer = listify;
+
+    size_t originalsize = pointer -> size; /* want size without heading */
+    size_t adjusted = adjust(originalsize);
+    size_t afterheader = size + 8;
+
+    /* fprintf(stderr, "%s%zd%s%zd%s\n", "realloc(*", originalsize - 8, ", ", size, ");"); */
+
+    if (size <= CHUNK_SIZE - 8) { /* will not involve bulk allocations */
+        if (originalsize >= size){ /* making pointer SMALLER */
+            pointer -> size = afterheader;
+            return pointer + 8;
+        }
+        else { /* making pointer LARGER */
+            if (adjusted >= afterheader){ /* current block can accommodate increased size */
+                pointer -> size = afterheader;
+                return pointer + 8;
+            }
+            else { /* current block cannot accommodate increased size */
+                struct list *newpointer = malloc(size);
+                size_t bulksize = pointer -> size;
+                if (size > bulksize){
+                    memcpy(newpointer, pointer, pointer -> size);
+                }
+                else {
+                    memcpy(newpointer, pointer, bulksize);
+                }
+                newpointer = newpointer - 8;
+                newpointer -> size = afterheader;
+
+                free(ptr);
+                return newpointer + 8;
+            }
+        }
+    }
+
+    else { /* will involve bulk allocations */ 
+        struct list *newpointer = bulk_alloc(size + 8);
+        size_t bulksize = pointer -> size;
+
+        if (size > bulksize){
+            memcpy(newpointer, pointer, pointer -> size);
+        }
+        else {
+            memcpy(newpointer, pointer, size + 8);
+        }
+        newpointer -> size = afterheader;
+
+        if (bulksize <= 4096){
+            free(ptr);
+        }
+        else {
+            bulk_free(pointer,bulksize);
+        }
+        
+        return newpointer + 8;
+    }
+    
+    return NULL;
 }

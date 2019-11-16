@@ -12,7 +12,7 @@
  * tests for your allocator. */
 int main(int argc, char *argv[])
 {
-    void *p1, *p2, *brk1, brk2;
+    void *p1, *p2, *brk1;
 
     /* First request an allocation of ALLOC_SIZE bytes to cause the
      * allocator to fetch some memory from the OS and "prime" this
@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     if (brk1 == NULL) {
         fprintf(stderr, "sbrk() failed: %p %p\n", p1, p2);
     }
-
+    
     /* Compare the new program break to the old and make sure that it
      * has not changed. */
     if (brk1 == sbrk(0)) {
