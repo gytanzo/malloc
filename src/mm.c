@@ -71,27 +71,87 @@ static struct list* findList(size_t size){ /* Finds and returns what pool a poin
     return NULL;
 }
 
-static void expand(size_t adjusted, struct list *freelist){ /* Expands a free list pool when it runs out of blocks */
-    int chunksize = CHUNK_SIZE;
-    struct list *original = freelist;
-    struct list *old;
-    if (adjusted == 4096){
-            freelist -> next = sbrk(adjusted);
+static void expand(size_t adjusted, struct list *freelist){
+    int loopCount = (CHUNK_SIZE)/(adjusted);
+    int index = block_index(adjusted - 8);
+    struct list *pointer = sbrk(CHUNK_SIZE), *original, *old;
+    
+    for (int i = 0; i != loopCount; i++){
+        if(adjusted == 4096){
+            if (freelist == NULL){
+                freelist = pointer;
+            }
+            
+            freelist -> next = sbrk(4096);
             freelist -> next -> next = NULL;
-            freelist -> next -> prev = NULL;
-            return;
-    }
-    while (chunksize != 0){
-        old = freelist;
+
+            freelist -> prev = NULL;
+            freelist -> next -> prev = freelist;
+            
+            freelist -> size = 0;
+            freelist -> next -> size = 0;
+
+            break;
+        }
         
-        freelist -> next = sbrk(adjusted);
-        freelist = freelist -> next;
-        freelist -> prev = old;
+        if (freelist == NULL){
+            freelist = pointer;
+            original = freelist;
 
-        chunksize -= adjusted;
+            freelist -> prev = NULL;
+            freelist -> size = 0;
+            
+            old = freelist;
+            
+            pointer = (void *)pointer + adjusted;
+        }
 
+        else {
+            freelist -> next = pointer;
+            freelist = freelist -> next;
+            freelist = pointer;
+
+            freelist -> prev = old;
+            freelist -> size = 0;
+
+            old = freelist;
+            
+
+            pointer = (void *)pointer + adjusted;
+        }
     }
-    freelist = original;
+
+    if (index == 5){
+        freelist = original;
+        freetable -> five = freelist;
+    }
+    else if (index == 6){
+        freelist = original;
+        freetable -> six = freelist;
+    }
+    else if (index == 7){
+        freelist = original;
+        freetable -> seven = freelist;
+    }
+    else if (index == 8){
+        freelist = original;
+        freetable -> eight = freelist;
+    }
+    else if (index == 9){
+        freelist = original;
+        freetable -> nine = freelist;
+    }
+    else if (index == 10){
+        freelist = original;
+        freetable -> ten = freelist;
+    }
+    else if (index == 11){
+        freelist = original;
+        freetable -> eleven = freelist;
+    }
+    else if (index == 12){
+        freetable -> twelve = freelist;
+    }
 }
 
 static void update(size_t size, struct list *updatedList){ /* Updates the head of the free list pool */
@@ -134,19 +194,11 @@ void *malloc(size_t size) {
 
     if (freetable == NULL){
         freetable = sbrk(sizeoftable);
-        freetable -> five = sbrk(32);
-        freetable -> six = sbrk(64);
-        freetable -> seven = sbrk(128);
-        freetable -> eight = sbrk(256);
-        freetable -> nine = sbrk(512);
-        freetable -> ten = sbrk(1024);
-        freetable -> eleven = sbrk(2048);
-        freetable -> twelve = sbrk(4096);
     }
 
     if (size <= 4088){ /* NOT using a bulk allocation */
-        struct list *thelist = findList(index);
-        if (thelist -> next != NULL){ /* Space available, ready to allocate */
+        struct list *thelist = NULL;
+        if (thelist != NULL && thelist -> next != NULL){ /* Space available, ready to allocate */
             returnlist = thelist;
 
             thelist = thelist -> next;
@@ -162,6 +214,8 @@ void *malloc(size_t size) {
 
         else { /* Not enough space available */
             expand(adjusted, thelist);
+
+            thelist = findList(index);
 
             returnlist = thelist;
 
