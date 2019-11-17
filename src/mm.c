@@ -37,13 +37,13 @@ static inline __attribute__((unused)) int block_index(size_t x) {
     }
 }
 
-size_t adjust(size_t size){
+static size_t adjust(size_t size){
     int pow = block_index(size);
     int adjusted = 1<<pow;
     return adjusted;
 }
 
-struct list* findList(size_t size){ /* Finds and returns what pool a pointer belongs to given size */
+static struct list* findList(size_t size){ /* Finds and returns what pool a pointer belongs to given size */
     if (size == 5){
         return freetable -> five;
     }
@@ -71,7 +71,7 @@ struct list* findList(size_t size){ /* Finds and returns what pool a pointer bel
     return NULL;
 }
 
-void expand(size_t adjusted, struct list *freelist){ /* Expands a free list pool when it runs out of blocks */
+static void expand(size_t adjusted, struct list *freelist){ /* Expands a free list pool when it runs out of blocks */
     int chunksize = CHUNK_SIZE;
     struct list *original = freelist;
     struct list *old;
@@ -94,7 +94,7 @@ void expand(size_t adjusted, struct list *freelist){ /* Expands a free list pool
     freelist = original;
 }
 
-void update(size_t size, struct list *updatedList){ /* Updates the head of the free list pool */
+static void update(size_t size, struct list *updatedList){ /* Updates the head of the free list pool */
     if (size == 5){
         freetable -> five = updatedList;
     }
@@ -213,10 +213,11 @@ void free(void *ptr) {
     int index = block_index(size);
 
     if (size <= 0){ /* this isn't a valid pointer */
+        fprintf(stderr, "%s", "How did you get here?");
         return;
     }
 
-    fprintf(stderr, "%s%zd%s\n", "free(*", size - 8, ");");
+    fprintf(stderr, "%s%zd%s\n", "free(*", size, ");");
 
     struct list *stoneFree;
 
@@ -348,7 +349,7 @@ void *realloc(void *ptr, size_t size) {
         }
         newpointer -> size = headspace;
 
-        if (originalsize <= 4096){
+        if (adjusted <= 4096){
             free(ptr);
         }
         else {

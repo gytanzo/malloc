@@ -4,7 +4,7 @@ CC := gcc
 # CFLAGS!  Note that _DEFAULT_SOURCE must be defined for your source to
 # find the functions brk() and sbrk(), and -fPIC is required for
 # building the shared library libcsemalloc.so.
-CFLAGS := -g -Wall -Werror -std=c99 -fPIC -D_DEFAULT_SOURCE
+CFLAGS := -g -Wall -std=c99 -fPIC -D_DEFAULT_SOURCE
 
 # These are the included tests.  You may modify this line if you like,
 # but your modifications will not be submitted.  (You might, for
@@ -12,7 +12,7 @@ CFLAGS := -g -Wall -Werror -std=c99 -fPIC -D_DEFAULT_SOURCE
 #
 # You can add tests to this list that will be compiled and run when you
 # invoke make test.  See the test and tests/% rules, below.
-TESTS := test_bulk test_simple_malloc
+TESTS := test_bulk test_simple_malloc test_personal
 
 all: libcsemalloc.so
 
