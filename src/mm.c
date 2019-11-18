@@ -116,7 +116,6 @@ static void expand(size_t adjusted, struct list *freelist){
 
             old = freelist;
             
-
             pointer = (void *)pointer + adjusted;
         }
     }
@@ -335,9 +334,9 @@ void free(void *ptr) {
     }
 
     else { /* Uses bulk allocations */
-        bulk_free(pointer, size);
+        bulk_free(pointer, size + 8);
     }
-    
+
     return;
 }
 
@@ -345,7 +344,7 @@ void *realloc(void *ptr, size_t size) {
     struct list *returnlist; /* return this */
     
     if (ptr == NULL){ /* First clarity check, see man 3 malloc */
-        fprintf(stderr, "%s\n", "realloc(NULL ptr);");
+        fprintf(stderr, "%s%zd%s\n", "malloc(", size, ");");
         returnlist = malloc(size);
         return returnlist;
     }
@@ -359,58 +358,44 @@ void *realloc(void *ptr, size_t size) {
     struct list *pointer = (struct list*)ptr; /* converts to type struct list */
     pointer = pointer - 8;
 
-    size_t originalsize = pointer -> size; /* want size without heading */
+    size_t originalsize = (pointer -> size) - 8; /* want size without heading */
     size_t adjusted = adjust(originalsize);
+    size_t newadjusted = adjust(size);
     size_t headspace = size + 8;
 
-    fprintf(stderr, "%s%zd%s%zd%s\n", "realloc(*", originalsize - 8, ", ", size, ");");
+    fprintf(stderr, "%s%zd%s%zd%s\n", "realloc(*", originalsize, ", ", size, ");");
 
-    if (size <= CHUNK_SIZE - 8) { /* will not involve bulk allocations */
-        if (originalsize >= size){ /* making pointer SMALLER */
-            pointer -> size = headspace;
-            return pointer + 8;
-        }
-        else { /* making pointer LARGER */
-            if (adjusted >= headspace){ /* current block can accommodate increased size */
+    if (originalsize >= size){ /* making pointer SMALLER */
+        pointer -> size = headspace;
+        return pointer + 8;
+    }
+
+    else { /* making pointer LARGER */
+        if (originalsize <= 4088 && size <= 4088){ /* doesn't use bulk allocations */
+            if (newadjusted == adjusted){ /* current block can accomodate reallocation */
                 pointer -> size = headspace;
                 return pointer + 8;
             }
-            else { /* current block cannot accommodate increased size */
+            else { /* current block cannot accomodate reallocation */
                 struct list *newpointer = malloc(size);
-                if (size > originalsize){
-                    memcpy(newpointer, pointer, originalsize);
-                }
-                else {
-                    memcpy(newpointer, pointer, size);
-                }
-                newpointer = newpointer - 8;
-                newpointer -> size = headspace;
+                pointer = pointer + 8;
+
+                memcpy(newpointer, pointer, originalsize);
 
                 free(ptr);
-                return newpointer + 8;
+                return newpointer;
             }
         }
-    }
 
-    else { /* will involve bulk allocations */ 
-        struct list *newpointer = bulk_alloc(size + 8);
+        else { /* involves bulk allocations */
+            struct list *newpointer = malloc(size);
 
-        if (size > originalsize){
             memcpy(newpointer, pointer, originalsize);
-        }
-        else {
-            memcpy(newpointer, pointer, size);
-        }
-        newpointer -> size = headspace;
 
-        if (adjusted <= 4096){
             free(ptr);
+            
+            return newpointer + 8;
         }
-        else {
-            bulk_free(pointer, headspace);
-        }
-        
-        return newpointer + 8;
     }
     
     return NULL;
