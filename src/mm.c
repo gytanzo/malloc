@@ -101,20 +101,18 @@ static void expand(size_t adjusted, struct list *freelist){
             freelist -> prev = NULL;
             freelist -> size = 0;
             
-            old = freelist;
-            
             pointer = (void *)pointer + adjusted;
         }
 
         else {
+            old = freelist;
+                        
             freelist -> next = pointer;
             freelist = freelist -> next;
             freelist = pointer;
 
             freelist -> prev = old;
             freelist -> size = 0;
-
-            old = freelist;
             
             pointer = (void *)pointer + adjusted;
         }
@@ -197,42 +195,27 @@ void *malloc(size_t size) {
 
     if (size <= 4088){ /* NOT using a bulk allocation */
         struct list *thelist = NULL;
-        if (thelist != NULL && thelist -> next != NULL){ /* Space available, ready to allocate */
-            returnlist = thelist;
+        expand(adjusted, thelist);
 
-            thelist = thelist -> next;
-            thelist -> prev = NULL;
+        thelist = findList(index);
 
-            update(index, thelist);
-            
-            returnlist -> size = headspace;
-            returnlist -> next = NULL; /* returnlist shouldn't be associated with the free table */
+        returnlist = thelist;
 
-            return returnlist + 8;
-        }
+        thelist = thelist -> next;
+        thelist -> prev = NULL;
 
-        else { /* Not enough space available */
-            expand(adjusted, thelist);
-
-            thelist = findList(index);
-
-            returnlist = thelist;
-
-            thelist = thelist -> next;
-            thelist -> prev = NULL;
-
-            update(index, thelist);
+        update(index, thelist);
                 
-            returnlist -> size = headspace;
-            returnlist -> next = NULL;
+        returnlist -> size = headspace;
+        returnlist -> next = NULL;
 
-            return returnlist + 8;
-        }
+        return returnlist + 8;
     }
 
     else { /* Using a bulk allocation */
         returnlist = bulk_alloc(headspace);
         returnlist -> size = headspace;
+        
         return returnlist + 8;
     }
 
@@ -392,7 +375,12 @@ void *realloc(void *ptr, size_t size) {
 
             memcpy(newpointer, pointer, originalsize);
 
-            free(ptr);
+            if (size <= 4088){
+                free(ptr);
+            }
+            else{
+                bulk_free(ptr, originalsize);
+            }
             
             return newpointer + 8;
         }
